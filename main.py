@@ -1,70 +1,50 @@
+import numpy as np
 import os
-import time
+from tqdm import tqdm  # For better progress tracking
 
 
-def switch_bits(input_file, output_file):
-    try:
-        total_size = os.path.getsize(input_file)
-        processed_size = 0
-        start_time = time.time()
+def swap_4bits(data):
+    # Unpack all bits at once
+    bits = np.unpackbits(data).reshape(-1, 8)
+    # Swap first and last 4 bits for all bytes at once
+    swapped = np.hstack((bits[:, 4:], bits[:, :4]))
+    # Pack bits back to bytes
+    return np.packbits(swapped.ravel())
 
-        with open(input_file, 'rb') as infile, open(output_file, 'wb') as outfile:
+
+def process_file(filename, output_filename="File_Converted.LS3W", chunk_size=1024 * 1024):
+    # Get file size
+    file_size = os.path.getsize(filename)
+    print(f"Size of File is {file_size:,} bytes")
+
+    # Process file in chunks
+    with open(filename, "rb") as infile, open(output_filename, "wb") as outfile:
+        # Create progress bar
+        with tqdm(total=file_size, unit='B', unit_scale=True, desc="Processing") as pbar:
             while True:
-                # Read 1 byte at a time
-                byte = infile.read(1)
-                if not byte:
+                # Read chunk of data
+                chunk = infile.read(chunk_size)
+                if not chunk:
                     break
 
-                # Convert byte to integer
-                value = ord(byte)
+                # Convert chunk to numpy array
+                data = np.frombuffer(chunk, dtype=np.uint8)
 
-                # Switch bits
-                new_value = ((value & 0b11001100) >> 2) | ((value & 0b00110011) << 2)
+                # Process the chunk
+                processed_data = swap_4bits(data)
 
-                # Write the new byte
-                outfile.write(bytes([new_value]))
+                # Write processed chunk
+                outfile.write(processed_data.tobytes())
 
-                # Update progress
-                processed_size += 1
-                if processed_size % 1024 == 0:  # Update every 1KB
-                    percent_done = (processed_size / total_size) * 100
-                    elapsed_time = time.time() - start_time
-                    speed = processed_size / elapsed_time if elapsed_time > 0 else 0
-                    estimated_time = (total_size - processed_size) / speed if speed > 0 else 0
+                # Update progress bar
+                pbar.update(len(chunk))
 
-                    print(f"\rProgress: {percent_done:.2f}% | "
-                          f"Speed: {speed:.2f} B/s | "
-                          f"Estimated time remaining: {estimated_time:.2f} seconds",
-                          end='', flush=True)
-
-        print("\nProcessing complete!")
-        print(f"Processed {input_file} and saved result to {output_file}")
-    except FileNotFoundError:
-        print(f"Error: The file '{input_file}' was not found.")
-    except PermissionError:
-        print(f"Error: Permission denied when trying to access '{input_file}' or '{output_file}'.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-
-
-def get_valid_filename(prompt):
-    while True:
-        filename = input(prompt)
-        if os.path.isfile(filename):
-            return filename
-        else:
-            print(f"The file '{filename}' does not exist. Please enter a valid filename.")
-
-
-def main():
-    print("Bit Switcher Program")
-    print("This program switches bits of a binary file every two bits.")
-
-    input_file = get_valid_filename("Enter the input file name: ")
-    output_file = input("Enter the output file name: ")
-
-    switch_bits(input_file, output_file)
+    print('Processing completed successfully')
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        filename = input('Please input the name of file: ')
+        process_file(filename)
+    except Exception as e:
+        print(f"Error occurred:", str(e))
